@@ -1,4 +1,4 @@
-# LTH-Interceptor v2.0
+# LTH-Interceptor v1.2
 
 Local authorized **penetration-testing / bug-bounty agent** with a CLI and Web UI.
 
