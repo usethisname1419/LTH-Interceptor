@@ -370,6 +370,22 @@ html, body {
   font-family: var(--font-mono);
   font-size: 0.78rem;
 }
+.poc-card {
+  border-color: #5a3a2a;
+}
+.poc-body {
+  white-space: pre-wrap;
+  margin: 0.45rem 0 0;
+  padding: 0.55rem 0.65rem;
+  color: #e8d5c4;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid #3a2a22;
+  border-radius: 8px;
+  max-height: 280px;
+  overflow: auto;
+}
 
 .card {
   border: 1px solid var(--line);

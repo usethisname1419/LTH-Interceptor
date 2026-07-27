@@ -107,6 +107,113 @@ class ToolMemory:
             return "(none yet)"
         return "\n".join(f"- {line}" for line in self._history[-limit:])
 
+    def phase_brief(self, hosts: list[str] | None = None) -> str:
+        """Human-readable where we are in the engagement (for the system prompt)."""
+        hosts = [h for h in (hosts or []) if h]
+        root = hosts[0] if hosts else ""
+        done = self._done_names()
+        lines = [
+            f"Hosts in play: {', '.join(hosts[:12]) or '(none)'}",
+            f"Tools already run this session: {', '.join(sorted(done)) or '(none)'}",
+        ]
+        nxt = self.suggest_next_calls(hosts)
+        if nxt:
+            names = [c["name"] for c in nxt]
+            lines.append(f"Next phase (do these — do NOT restart recon): {', '.join(names)}")
+        else:
+            lines.append(
+                "Next phase: deepen testing on interesting URLs "
+                "(param_fuzz / xss_reflect_check / save_note) or summarize findings."
+            )
+        if root and "subdomain_enum" in done and "httpx_probe" in done:
+            lines.append("Recon baseline is DONE — do not re-run subdomain_enum/httpx/nuclei on the same hosts.")
+        return "\n".join(lines)
+
+    def _done_names(self) -> set[str]:
+        names: set[str] = set()
+        for line in self._history:
+            name = line.split(" →", 1)[0].strip()
+            if name:
+                names.add(name)
+        if self._httpx_hosts:
+            names.add("httpx_probe")
+        for key in self._keys:
+            names.add(key.split("|", 1)[0])
+        return names
+
+    def has_run(self, name: str, target_substr: str | None = None) -> bool:
+        prefix = f"{name}|"
+        for key in self._keys:
+            if not key.startswith(prefix):
+                continue
+            if not target_substr or target_substr.lower() in key.lower():
+                return True
+        if name == "httpx_probe" and self._httpx_hosts:
+            if not target_substr:
+                return True
+            return any(target_substr.lower() in h for h in self._httpx_hosts)
+        return False
+
+    def suggest_next_calls(self, hosts: list[str] | None = None) -> list[dict[str, Any]]:
+        """Concrete next tool calls for the current phase (skips already-done work)."""
+        hosts = [h for h in (hosts or []) if h][:8]
+        if not hosts:
+            return []
+        root = hosts[0]
+        base = f"https://{root}"
+        calls: list[dict[str, Any]] = []
+
+        if not self.has_run("subdomain_enum", root):
+            calls.append({"name": "subdomain_enum", "arguments": {"domain": root}})
+        if not self._httpx_hosts:
+            calls.append({"name": "httpx_probe", "arguments": {"targets": ",".join(hosts)}})
+        elif not self.has_run("dns_lookup", root):
+            calls.append({"name": "dns_lookup", "arguments": {"host": root}})
+
+        if self.has_run("httpx_probe") or self._httpx_hosts:
+            if not self.has_run("crawl_urls", root):
+                calls.append({"name": "crawl_urls", "arguments": {"url": base, "depth": 2}})
+            if not self.has_run("inspect_page", root):
+                calls.append(
+                    {"name": "inspect_page", "arguments": {"url": base + "/", "follow_js": True}}
+                )
+            if not self.has_run("playwright_browse", root):
+                calls.append({"name": "playwright_browse", "arguments": {"url": base + "/"}})
+
+        # Fuzz / nuclei only after some surface work, and only once per root
+        surface_done = self.has_run("inspect_page") or self.has_run("crawl_urls")
+        if surface_done:
+            if not self.has_run("dir_fuzz", root):
+                calls.append({"name": "dir_fuzz", "arguments": {"url": base + "/FUZZ", "threads": 20}})
+            if not self.has_run("nuclei_scan", root):
+                calls.append(
+                    {
+                        "name": "nuclei_scan",
+                        "arguments": {
+                            "target": base,
+                            "severity": "medium,high,critical",
+                        },
+                    }
+                )
+            if not self.has_run("param_fuzz", root):
+                calls.append(
+                    {
+                        "name": "param_fuzz",
+                        "arguments": {"url": base + "/?FUZZ=test", "method": "GET"},
+                    }
+                )
+
+        # Filter through our own skip logic so we never suggest dupes
+        out: list[dict[str, Any]] = []
+        for c in calls:
+            filtered, skip = self.filter_call(c["name"], c.get("arguments") or {})
+            if skip:
+                continue
+            out.append({"name": c["name"], "arguments": filtered or c.get("arguments") or {}})
+            if len(out) >= 4:
+                break
+        return out
+
     def _key(self, name: str, target: str) -> str:
         return f"{name}|{target}"
 

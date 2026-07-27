@@ -99,6 +99,9 @@ Rules:
    param_fuzz, xss_reflect_check, save_note for follow-up.
 9. Prefer LTH wrapper tools. Use `shell` with a path from the Kali inventory only when
    no wrapper covers the need (still in-scope, non-destructive).
+10. Follow ENGAGEMENT STATE. If recon is done, advance to surface/fuzz/validation —
+    never restart subdomain_enum/httpx/nuclei from scratch. save_note needs content;
+    title is optional.
 """
 
 TOOL_ONLY_PROMPT = """You are LTH-Interceptor (pentest/bug-bounty agent). Return ONLY valid JSON tool call(s).
@@ -181,14 +184,33 @@ class Agent:
             parts.append("=== PENTEST SKILLS (follow these) ===\n" + skills)
         inventory = load_kali_inventory(self.config, refresh=False)
         if inventory:
-            # Keep prompt bounded — curated file is already small
             parts.append(
                 "=== KALI TOOL INVENTORY (curated; prefer wrappers) ===\n"
                 + inventory[:6000]
             )
+        hosts = collect_session_hosts(self.messages, self.config.scope)
         parts.append(
-            "Already completed this session (do not repeat):\n" + self.memory.summary()
+            "=== ENGAGEMENT STATE (do not restart completed phases) ===\n"
+            + self.memory.phase_brief(hosts)
+            + "\n\nAlready completed this session (do not repeat):\n"
+            + self.memory.summary()
         )
+        if self.store is not None:
+            try:
+                stats = self.store.stats()
+                todos = self.store.list_todos(status="pending")[:8]
+                todo_lines = "\n".join(
+                    f"- (p{t.get('priority')}) {t.get('title')}" for t in todos
+                ) or "- (none)"
+                parts.append(
+                    "=== FINDINGS DB ===\n"
+                    f"open_findings={stats.get('open_findings')} "
+                    f"high_or_critical={stats.get('high_or_critical')} "
+                    f"open_todos={stats.get('open_todos')}\n"
+                    f"Open todos:\n{todo_lines}"
+                )
+            except Exception:
+                pass
         return "\n\n".join(parts)
 
     def _scope_block(self) -> str:
@@ -287,11 +309,18 @@ class Agent:
 
     def _force_tool_json(self, goal: str) -> list[dict[str, Any]]:
         hosts = collect_session_hosts(self.messages, self.config.scope)
+        # Prefer phase-aware next steps when recon already progressed
+        suggested = self.memory.suggest_next_calls(hosts)
+        if suggested:
+            return self._normalize_calls(
+                [{"function": {"name": c["name"], "arguments": c["arguments"]}} for c in suggested]
+            )
         payload = (
             f"User goal: {goal}\n"
             f"In-scope / known hosts: {', '.join(hosts) or '(none)'}\n"
+            f"Engagement state:\n{self.memory.phase_brief(hosts)}\n"
             f"Already completed this session (DO NOT REPEAT):\n{self.memory.summary()}\n"
-            "Emit 1-5 NEW tool calls only. No subdomain_enum/httpx/nuclei repeats."
+            "Emit 1-4 NEW tool calls for the NEXT phase only. No recon restarts."
         )
         response = self.llm.chat(
             [
@@ -417,11 +446,45 @@ class Agent:
             }
         )
 
+    def _engagement_wrapup(self) -> str:
+        hosts = collect_session_hosts(self.messages, self.config.scope)
+        brief = self.memory.phase_brief(hosts)
+        stats_line = ""
+        if self.store is not None:
+            try:
+                s = self.store.stats()
+                stats_line = (
+                    f"\nFindings open: {s.get('open_findings')} "
+                    f"(hi/crit: {s.get('high_or_critical')}), "
+                    f"todos open: {s.get('open_todos')}."
+                )
+            except Exception:
+                pass
+        return (
+            "Paused on repeated tools — engagement state is preserved.\n"
+            f"{brief}{stats_line}\n"
+            "Prompt me with a specific next technique (e.g. inspect a URL, param fuzz, "
+            "XSS check) or ask for a findings summary."
+        )
+
+    def _compact_messages(self, keep_tools: int = 10) -> None:
+        """Shrink old tool payloads so the model keeps recent context + system state."""
+        tool_idxs = [i for i, m in enumerate(self.messages) if m.get("role") == "tool"]
+        if len(tool_idxs) <= keep_tools:
+            return
+        drop = set(tool_idxs[:-keep_tools])
+        for i in drop:
+            m = self.messages[i]
+            content = str(m.get("content") or "")
+            if len(content) > 600:
+                m["content"] = content[:500] + "\n…(truncated; see findings/notes DB)…"
+
     def run(self, user_task: str, *, new_session: bool = False) -> str:
         if new_session or not self.messages:
             self._reset_session()
 
         self.messages.append({"role": "user", "content": user_task})
+        self._compact_messages()
         inj = detect_prompt_injection(user_task)
         if inj:
             warn = (
@@ -481,8 +544,45 @@ class Agent:
                     if ran:
                         nudges = 0
                         continue
-                    # All calls were duplicates — ask for something new once, else summarize
+                    # All calls were duplicates — advance to next phase automatically
                     nudges += 1
+                    hosts = collect_session_hosts(self.messages, self.config.scope)
+                    nxt = self.memory.suggest_next_calls(hosts)
+                    if nxt and nudges <= 3:
+                        self.console.print("(advancing to next engagement phase...)")
+                        self._emit(
+                            {
+                                "type": "status",
+                                "content": "(advancing to next engagement phase...)",
+                            }
+                        )
+                        forced = self._normalize_calls(
+                            [
+                                {
+                                    "function": {
+                                        "name": c["name"],
+                                        "arguments": c["arguments"],
+                                    }
+                                }
+                                for c in nxt
+                            ]
+                        )
+                        self.messages.append(
+                            {
+                                "role": "user",
+                                "content": (
+                                    "Those tools already ran (SKIPPED). Advancing to the next phase. "
+                                    "Do not restart recon."
+                                ),
+                            }
+                        )
+                        self.messages.append(
+                            {"role": "assistant", "content": "", "tool_calls": forced}
+                        )
+                        ran = self._execute_calls(forced)
+                        if ran:
+                            nudges = 0
+                            continue
                     if nudges <= 1:
                         self.messages.append(
                             {
@@ -490,20 +590,17 @@ class Agent:
                                 "content": (
                                     "Those tools already ran this session (see SKIPPED). "
                                     "Do NOT repeat subdomain_enum, httpx_probe, or nuclei_scan "
-                                    "on the same hosts. Pick a NEW action "
+                                    "on the same hosts. Pick a NEW deeper action "
                                     "(inspect_page, playwright_browse, dir_fuzz, param_fuzz, "
-                                    "xss_reflect_check, save_note) "
+                                    "xss_reflect_check, save_note with content=...) "
                                     "or write a short findings summary with attack ideas."
                                 ),
                             }
                         )
                         continue
-                    final_text = (
-                        "Stopped repeating completed tools. "
-                        "Ask for a new technique or summarize findings."
-                    )
+                    final_text = self._engagement_wrapup()
                     self.console.print(final_text)
-                    self._emit({"type": "assistant", "role": "assistant", "content": final_text})
+                    self._emit_assistant_text(final_text)
                     break
 
                 # Generic chatbot drift — force back into engagement
@@ -545,7 +642,22 @@ class Agent:
                     forced = self._force_tool_json(user_task)
                     if not forced:
                         hosts = collect_session_hosts(self.messages, self.config.scope)
-                        forced = self._normalize_calls(intent_playbook(user_task, hosts))
+                        # Only use broad intent playbook when nothing has run yet
+                        if not self.memory.summary() or self.memory.summary() == "(none yet)":
+                            forced = self._normalize_calls(intent_playbook(user_task, hosts))
+                        else:
+                            nxt = self.memory.suggest_next_calls(hosts)
+                            forced = self._normalize_calls(
+                                [
+                                    {
+                                        "function": {
+                                            "name": c["name"],
+                                            "arguments": c["arguments"],
+                                        }
+                                    }
+                                    for c in nxt
+                                ]
+                            )
 
                     if forced:
                         self.messages.append(
@@ -558,7 +670,25 @@ class Agent:
                         continue
 
                     hosts = collect_session_hosts(self.messages, self.config.scope)
-                    fallback = self._normalize_calls(intent_playbook(user_task or "initial checks", hosts))
+                    nxt = self.memory.suggest_next_calls(hosts)
+                    if nxt:
+                        fallback = self._normalize_calls(
+                            [
+                                {
+                                    "function": {
+                                        "name": c["name"],
+                                        "arguments": c["arguments"],
+                                    }
+                                }
+                                for c in nxt
+                            ]
+                        )
+                    elif not self.memory.summary() or self.memory.summary() == "(none yet)":
+                        fallback = self._normalize_calls(
+                            intent_playbook(user_task or "initial checks", hosts)
+                        )
+                    else:
+                        fallback = []
                     if fallback:
                         self.messages.append(
                             {"role": "assistant", "content": "", "tool_calls": fallback}

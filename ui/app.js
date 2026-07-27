@@ -393,6 +393,20 @@ async function refreshWork() {
           )
           .join("")
       : `<div class="msg status">No agent notes yet. The model writes these via save_note while testing.</div>`;
+  } else if (activeTab === "pocs") {
+    const rows = await api("/api/pocs");
+    workBody.innerHTML = rows.length
+      ? rows
+          .map(
+            (a) => `<div class="card poc-card">
+          <div class="sev high">poc</div>
+          <div><strong>${escapeHtml(a.title)}</strong></div>
+          <pre class="poc-body">${escapeHtml(a.body)}</pre>
+          <div class="meta">${escapeHtml(a.path || a.created_at || "")}</div>
+        </div>`
+          )
+          .join("")
+      : `<div class="msg status">No PoCs yet. When the agent calls save_poc, they show up here.</div>`;
   } else if (activeTab === "analysis") {
     const rows = await api("/api/analysis");
     workBody.innerHTML = rows.length

@@ -398,6 +398,41 @@ def api_notes() -> list[dict[str, Any]]:
     return notes
 
 
+@app.get("/api/pocs")
+def api_pocs() -> list[dict[str, Any]]:
+    rows = store.list_analysis(limit=200)
+    pocs = [r for r in rows if (r.get("kind") or "") == "poc"]
+    # Also surface files already on disk that may predate DB recording
+    try:
+        poc_dir = _cfg.pocs_path
+        if poc_dir.is_dir():
+            known = {str(p.get("title") or "").lower() for p in pocs}
+            for path in sorted(poc_dir.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True):
+                if not path.is_file() or path.name.startswith("."):
+                    continue
+                title = path.stem
+                if title.lower() in known:
+                    continue
+                try:
+                    body = path.read_text(encoding="utf-8", errors="replace")[:12000]
+                except OSError:
+                    body = f"(unreadable: {path})"
+                pocs.append(
+                    {
+                        "id": None,
+                        "title": title,
+                        "body": body,
+                        "kind": "poc",
+                        "created_at": "",
+                        "path": str(path),
+                    }
+                )
+                known.add(title.lower())
+    except Exception:
+        pass
+    return pocs
+
+
 @app.get("/api/playbooks")
 def api_playbooks() -> list[dict[str, str]]:
     return list_playbooks()

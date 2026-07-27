@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shlex
 from typing import Any, Callable
 
@@ -268,12 +269,18 @@ class ToolBelt:
                 "type": "function",
                 "function": {
                     "name": "save_note",
-                    "description": "Append/write an engagement note (recon notes, interesting params, ideas) to notes/.",
+                    "description": "Append/write an engagement note (recon notes, attack ideas, interesting params). Title is optional — defaults from content.",
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "title": {"type": "string"},
-                            "content": {"type": "string"},
+                            "title": {
+                                "type": "string",
+                                "description": "Short title (optional)",
+                            },
+                            "content": {
+                                "type": "string",
+                                "description": "Note body (required). Aliases body/note/text also accepted.",
+                            },
                             "filename": {"type": "string"},
                             "append": {
                                 "type": "boolean",
@@ -281,7 +288,7 @@ class ToolBelt:
                                 "default": True,
                             },
                         },
-                        "required": ["title", "content"],
+                        "required": ["content"],
                     },
                 },
             },
@@ -955,48 +962,77 @@ class ToolBelt:
 
     def save_note(
         self,
-        title: str,
-        content: str,
+        title: str | None = None,
+        content: str | None = None,
         filename: str | None = None,
         append: bool = True,
+        **_extra: Any,
     ) -> str:
+        # Tolerate messy model args (missing title, content under aliases)
+        if content is None or str(content).strip() == "":
+            for key in ("body", "note", "text", "message", "markdown", "notes"):
+                if _extra.get(key):
+                    content = str(_extra[key])
+                    break
+        content = str(content or "").strip()
+        title = str(title or "").strip()
+        if not title:
+            first = content.split("\n", 1)[0].strip() if content else ""
+            first = re.sub(r"^#+\s*", "", first)
+            title = (first[:80] if first else "") or "Engagement note"
+        if not content:
+            content = "(empty note)"
         self.config.notes_path.mkdir(parents=True, exist_ok=True)
         safe = self._safe_name(filename or title)
         if not safe.endswith(".md"):
             safe += ".md"
         path = self.config.notes_path / safe
-        block = f"## {title}\n\n{content.strip()}\n\n"
+        block = f"## {title}\n\n{content}\n\n"
         if append and path.exists():
             with path.open("a", encoding="utf-8") as fh:
                 fh.write(block)
             msg = f"Appended note: {path}"
         else:
-            path.write_text(f"# {title}\n\n{content.strip()}\n", encoding="utf-8")
+            path.write_text(f"# {title}\n\n{content}\n", encoding="utf-8")
             msg = f"Wrote note: {path}"
         if self.store is not None:
             try:
-                self.store.add_analysis(title, content.strip(), kind="note")
+                self.store.add_analysis(title, content, kind="note")
             except Exception:
                 pass
         return msg
 
     def save_poc(
         self,
-        title: str,
-        content: str,
+        title: str | None = None,
+        content: str | None = None,
         filename: str | None = None,
         ext: str = "md",
+        **_extra: Any,
     ) -> str:
+        if content is None or str(content).strip() == "":
+            for key in ("body", "poc", "text", "code", "payload"):
+                if _extra.get(key):
+                    content = str(_extra[key])
+                    break
+        content = str(content or "").strip() or "(empty poc)"
+        title = str(title or "").strip() or "PoC"
         self.config.pocs_path.mkdir(parents=True, exist_ok=True)
         if filename:
             safe = self._safe_name(filename)
         else:
             safe = self._safe_name(title) + f".{(ext or 'md').lstrip('.')}"
         path = self.config.pocs_path / safe
-        text = content if content.startswith(("#", "<!", "<?", "//")) else f"# {title}\n\n{content.strip()}\n"
+        text = content if content.startswith(("#", "<!", "<?", "//")) else f"# {title}\n\n{content}\n"
         if path.suffix.lower() in {".html", ".htm", ".js", ".py", ".sh"}:
             text = content
         path.write_text(text if text.endswith("\n") else text + "\n", encoding="utf-8")
+        if self.store is not None:
+            try:
+                body = text if len(text) < 12000 else text[:12000] + "\n…(truncated)"
+                self.store.add_analysis(title, f"{body}\n\n_File: `{path}`_", kind="poc")
+            except Exception:
+                pass
         return f"Wrote PoC: {path}"
 
     def playwright_browse(
@@ -1125,6 +1161,36 @@ def _coerce_args(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
                     val = "https://" + val
                 args["url"] = val
                 break
+    if name == "save_note":
+        if not str(args.get("content") or "").strip():
+            for key in ("body", "note", "text", "message", "markdown", "notes"):
+                if args.get(key):
+                    args["content"] = args.pop(key)
+                    break
+        # If model only sent title, treat title as content
+        if not str(args.get("content") or "").strip() and args.get("title"):
+            args["content"] = str(args.get("title"))
+        if not str(args.get("title") or "").strip():
+            body = str(args.get("content") or "").strip()
+            first = body.split("\n", 1)[0].strip() if body else ""
+            first = re.sub(r"^#+\s*", "", first)
+            args["title"] = (first[:80] if first else "") or "Engagement note"
+        if not str(args.get("content") or "").strip():
+            args["content"] = "(empty note)"
+    if name == "save_poc":
+        if not str(args.get("content") or "").strip():
+            for key in ("body", "poc", "text", "code", "payload"):
+                if args.get(key):
+                    args["content"] = args.pop(key)
+                    break
+        if not str(args.get("title") or "").strip():
+            args["title"] = "PoC"
     # Drop unknown kwargs that would break TypeError for common extras
+    if name == "save_note":
+        keep = {"title", "content", "filename", "append"}
+        args = {k: v for k, v in args.items() if k in keep}
+    if name == "save_poc":
+        keep = {"title", "content", "filename", "ext"}
+        args = {k: v for k, v in args.items() if k in keep}
     return args
 

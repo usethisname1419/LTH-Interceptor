@@ -1,4 +1,4 @@
-# LTH-Interceptor v1.0
+# LTH-Interceptor v1.1
 
 Local authorized **penetration-testing / bug-bounty agent** with a CLI and Web UI.
 
@@ -15,14 +15,15 @@ Models are **not** shipped in this repo. Install them with Ollama on your machin
 ## Features
 
 - Hybrid agent: Ollama brain on Windows + scanner tools on Kali over SSH
-- Web UI at http://127.0.0.1:8787 — AI stream, findings, todos, notes, analysis, playbook runs
+- Web UI at http://127.0.0.1:8787 — AI stream, findings, todos, notes, PoCs, analysis, playbook runs
 - CLI via `.\agent.ps1` with dual-model toggle (M1/M2)
 - Playbooks: `recon`, `surface`, `web-bounty`, `ports`, `report`
 - Target chart (endpoints / services / interesting items)
 - Findings severity filters (info / low / medium / hi / crit)
-- Collapsible AI reasoning + agent notes
+- Collapsible AI reasoning + agent notes + PoCs tab
 - Playwright browser sandbox on Kali (`playwright_browse`)
 - Curated Kali tool inventory + editable pentest skills (`agent/skills/`)
+- Phase-aware workflow (advances instead of restarting recon)
 - SOCKS5 proxy rotation for HTTP tools
 - Session save / resume / clear
 
@@ -36,7 +37,7 @@ Models are **not** shipped in this repo. Install them with Ollama on your machin
 ## Quick start
 
 ```powershell
-git clone https://github.com/<YOU>/LTH-Interceptor.git
+git clone https://github.com/usethisname1419/LTH-Interceptor.git
 cd LTH-Interceptor
 
 python -m venv .venv
@@ -83,7 +84,7 @@ Any Ollama chat model can be used — set `model_1` / `model_2` to tags you have
 ## Config
 
 1. Copy `config.example.yaml` → `config.yaml` (gitignored — keep secrets local).
-2. Set `ssh` host/user/password or `key_path`. (WARNING: Use a dedicated secure kali VM)
+2. Set `ssh` host/user/password or `key_path`. (**WARNING:** Use a dedicated secure Kali VM.)
 3. Set `scope.domains` to the engagement target only.
 4. Optional: `proxies.txt` (one SOCKS5 URL per line). See `proxies.example.txt`.
 
@@ -100,7 +101,7 @@ Any Ollama chat model can be used — set `model_1` / `model_2` to tags you have
 ```
 
 - **Left** — AI / tool stream (collapsible reasoning when the model emits it)
-- **Right** — Findings (severity filters), Todos, Notes, Analysis, Runs
+- **Right** — Findings (severity filters), Todos, Notes, PoCs, Analysis, Runs
 - **Playbooks** + **Chart** (lean endpoint/service map)
 - **Config** editor, Save / Resume / Clear / Stop
 
