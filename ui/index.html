@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LTH-Interceptor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="top">
+      <div class="brand">
+        <div class="mark" aria-hidden="true"></div>
+        <div>
+          <div class="title">LTH-Interceptor</div>
+          <div class="sub" id="scopeLine">booting…</div>
+        </div>
+      </div>
+
+      <div class="top-actions">
+        <div class="model-switch" title="Toggle Ollama model">
+          <button type="button" class="slot" id="slot1" data-slot="1">M1</button>
+          <button type="button" class="slot" id="slot2" data-slot="2">M2</button>
+          <span class="model-name" id="modelName">—</span>
+        </div>
+        <div class="stats" id="stats"></div>
+        <button type="button" class="ghost" id="saveSessionBtn" title="Save session (1 slot)">Save</button>
+        <button type="button" class="ghost" id="resumeSessionBtn" title="Load saved session">Resume</button>
+        <button type="button" class="ghost" id="clearSessionBtn" title="Clear chat + findings + todos + analysis">Clear</button>
+        <button type="button" class="ghost" id="clearMemBtn" title="Allow scans to run again">Reset</button>
+        <button type="button" class="ghost" id="configBtn">Config</button>
+        <button type="button" class="ghost" id="recheckBtn">Recheck</button>
+        <button type="button" class="stop" id="stopBtn" disabled>Stop</button>
+        <span class="pill" id="statusPill">idle</span>
+      </div>
+    </header>
+
+    <section class="toolbar">
+      <div class="toolbar-label">Playbooks</div>
+      <div class="playbooks" id="playbooks"></div>
+      <button type="button" class="pb chart-btn" id="chartBtn" title="Open target chart in a new window">Chart</button>
+    </section>
+
+    <section class="diag-bar" id="diagBar">
+      <div class="diag-title">Systems</div>
+      <div class="diag-main">
+        <div class="activity-line" id="activityLine"><span class="spin idle">·</span> idle</div>
+        <div class="diag-lines" id="diagLines">Running startup checks…</div>
+      </div>
+    </section>
+
+    <div class="modal hidden" id="findingModal" role="dialog" aria-modal="true">
+      <div class="modal-card finding-card">
+        <div class="modal-head">
+          <h2 id="findingTitle">Finding</h2>
+          <button type="button" class="ghost" id="findingClose">Close</button>
+        </div>
+        <div class="finding-body" id="findingBody"></div>
+      </div>
+    </div>
+
+    <div class="modal hidden" id="configModal" role="dialog" aria-modal="true">
+      <div class="modal-card">
+        <div class="modal-head">
+          <h2>Edit config.yaml</h2>
+          <span class="path" id="configPath"></span>
+        </div>
+        <p class="modal-hint">Edits persist to disk. Blank/invalid configs are rejected. A backup is kept on each save.</p>
+        <textarea id="configEditor" spellcheck="false"></textarea>
+        <div class="modal-err" id="configErr"></div>
+        <div class="modal-actions">
+          <button type="button" class="ghost" id="configCancel">Cancel</button>
+          <button type="button" class="ghost" id="configSave">Save</button>
+          <button type="button" class="primary" id="configRestart">Save &amp; Restart</button>
+        </div>
+      </div>
+    </div>
+
+    <main class="panes">
+      <section class="pane ai-pane">
+        <div class="pane-head">
+          <h2>AI Output</h2>
+        </div>
+        <div class="pane-body" id="aiFeed"></div>
+      </section>
+
+      <section class="pane work-pane">
+        <div class="pane-head tabs">
+          <button type="button" class="tab active" data-tab="findings">Findings</button>
+          <button type="button" class="tab" data-tab="todos">Todos</button>
+          <button type="button" class="tab" data-tab="notes">Notes</button>
+          <button type="button" class="tab" data-tab="analysis">Analysis</button>
+          <button type="button" class="tab" data-tab="runs">Runs</button>
+          <button type="button" class="ghost" id="refreshWork">Refresh</button>
+        </div>
+        <div class="sev-filters" id="findingFilters" aria-label="Filter findings by severity">
+          <button type="button" class="sev-filter active" data-sev="all">All</button>
+          <button type="button" class="sev-filter active sev-info" data-sev="info">info</button>
+          <button type="button" class="sev-filter active sev-low" data-sev="low">low</button>
+          <button type="button" class="sev-filter active sev-medium" data-sev="medium">medium</button>
+          <button type="button" class="sev-filter active sev-high" data-sev="high">hi</button>
+          <button type="button" class="sev-filter active sev-critical" data-sev="critical">crit</button>
+        </div>
+        <div class="pane-body" id="workBody"></div>
+      </section>
+    </main>
+
+    <footer class="prompt-bar">
+      <div class="prompt-wrap">
+        <textarea id="prompt" rows="2" placeholder="Prompt the agent…  (/playbook surface  ·  /model 1)"></textarea>
+        <button type="button" class="stop" id="stopBtn2" disabled>Stop</button>
+        <button type="button" class="primary" id="sendBtn">Send</button>
+      </div>
+      <div class="hint">Top bar: Save / Resume / Clear (wipes findings too) / Reset scans · Config · Stop</div>
+    </footer>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

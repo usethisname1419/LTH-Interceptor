@@ -1,0 +1,44 @@
+# LTH-Interceptor configuration (example — copy to config.yaml)
+#
+# Architecture:
+#   Windows host  -> Ollama model (GPU)
+#   Kali VM       -> scanner tools over SSH (nmap/ffuf/nuclei/etc.)
+
+# Dual models — toggle with -Model 1|2 (CLI) or UI switch
+model_1: qwen2.5-coder:14b          # faster / lighter
+model_2: qwen2.5-coder:32b          # stronger (default)
+model_slot: 2                       # active: 1 or 2
+
+ollama_host: http://127.0.0.1:11434
+
+# ssh = brain on Windows, tools on Kali (recommended)
+runtime: ssh
+
+ssh:
+  host: 192.168.0.247
+  port: 22
+  user: interceptor
+  password: "CHANGE_ME"            # prefer key_path instead
+  key_path: ""
+  use_login_shell: true
+
+# Scope — agent refuses anything outside this list
+scope:
+  domains:
+    - example.com
+  allow_subdomains: true
+  hosts: []
+
+# SOCKS5 proxies (also loads proxies.txt if present)
+proxies: []
+
+proxy_rotate: random
+mark_dead_on_fail: true
+
+max_tool_rounds: 30
+timeout_sec: 300
+output_chars: 16000
+
+reports_dir: reports
+notes_dir: notes
+pocs_dir: pocs

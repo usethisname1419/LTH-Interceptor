@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LTH Target Chart</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Sora:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/chart.css" />
+</head>
+<body>
+  <header class="bar">
+    <div>
+      <div class="title">Target Chart</div>
+      <div class="sub" id="meta">Not generated yet — click Refresh</div>
+    </div>
+    <div class="actions">
+      <button type="button" class="ghost" id="backBtn">Open UI</button>
+      <button type="button" class="stop" id="stopBtn" disabled>Stop</button>
+      <button type="button" class="primary" id="refreshBtn">Refresh</button>
+    </div>
+  </header>
+  <main>
+    <aside class="notes" id="notesPane">
+      <h2>Notes</h2>
+      <div id="notes">Lean map of endpoints, services, and interesting items. Refresh builds it (LLM notes max ~90s).</div>
+    </aside>
+    <section class="canvas-wrap">
+      <svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div class="empty" id="empty">No chart yet.</div>
+    </section>
+  </main>
+  <div class="status" id="status"></div>
+  <script src="/static/chart.js"></script>
+</body>
+</html>
