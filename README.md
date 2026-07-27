@@ -69,7 +69,7 @@ Any Ollama chat model can be used — set `model_1` / `model_2` to tags you have
 ## Config
 
 1. Copy `config.example.yaml` → `config.yaml` (gitignored — keep secrets local).
-2. Set `ssh` host/user/password or `key_path`.
+2. Set `ssh` host/user/password or `key_path`. (WARNING: Use a dedicated secure kali VM)
 3. Set `scope.domains` to the engagement target only.
 4. Optional: `proxies.txt` (one SOCKS5 URL per line). See `proxies.example.txt`.
 
