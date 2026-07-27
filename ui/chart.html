@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Sora:wght@400;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/chart.css" />
+  <link rel="stylesheet" href="/static/chart.css?v=matrix3" />
 </head>
 <body>
   <header class="bar">
@@ -16,6 +16,7 @@
       <div class="sub" id="meta">Not generated yet — click Refresh</div>
     </div>
     <div class="actions">
+      <button type="button" class="ghost hidden" id="backViewBtn">← Domains</button>
       <button type="button" class="ghost" id="backBtn">Open UI</button>
       <button type="button" class="stop" id="stopBtn" disabled>Stop</button>
       <button type="button" class="primary" id="refreshBtn">Refresh</button>
@@ -24,7 +25,9 @@
   <main>
     <aside class="notes" id="notesPane">
       <h2>Notes</h2>
-      <div id="notes">Lean map of endpoints, services, and interesting items. Refresh builds it (LLM notes max ~90s).</div>
+      <div id="notes">Box/matrix map. Click a domain or subdomain to open its service chart.</div>
+      <h2 class="hint-title">View</h2>
+      <div class="view-hint" id="viewHint">Overview — domains &amp; subs</div>
     </aside>
     <section class="canvas-wrap">
       <svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
@@ -32,6 +35,6 @@
     </section>
   </main>
   <div class="status" id="status"></div>
-  <script src="/static/chart.js"></script>
+  <script src="/static/chart.js?v=matrix3"></script>
 </body>
 </html>

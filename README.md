@@ -1,4 +1,4 @@
-# LTH-Interceptor v1.1
+# LTH-Interceptor v2.0
 
 Local authorized **penetration-testing / bug-bounty agent** with a CLI and Web UI.
 
@@ -18,12 +18,13 @@ Models are **not** shipped in this repo. Install them with Ollama on your machin
 - Web UI at http://127.0.0.1:8787 — AI stream, findings, todos, notes, PoCs, analysis, playbook runs
 - CLI via `.\agent.ps1` with dual-model toggle (M1/M2)
 - Playbooks: `recon`, `surface`, `web-bounty`, `ports`, `report`
-- Target chart (endpoints / services / interesting items)
+- Target chart — domain backbone / subdomain matrix with click-through service view
 - Findings severity filters (info / low / medium / hi / crit)
 - Collapsible AI reasoning + agent notes + PoCs tab
 - Playwright browser sandbox on Kali (`playwright_browse`)
 - Curated Kali tool inventory + editable pentest skills (`agent/skills/`)
 - Phase-aware workflow (advances instead of restarting recon)
+- Recon playbook includes nmap on root + live hosts
 - SOCKS5 proxy rotation for HTTP tools
 - Session save / resume / clear
 
@@ -107,7 +108,7 @@ Any Ollama chat model can be used — set `model_1` / `model_2` to tags you have
 
 ## Playbooks
 
-- `recon` — subdomains + HTTP probe + quick ports
+- `recon` — subdomains + HTTP probe + nmap ports + light surface
 - `surface` — crawl / inspect pages
 - `web-bounty` — nuclei + dir/param fuzz + xss checks + report
 - `ports` — common-port sweep

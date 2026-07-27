@@ -71,9 +71,13 @@ def build_chart_from_store(store: Store, config: AppConfig) -> dict[str, Any]:
             continue
 
         if host:
-            add_node(f"host:{host}", host, "host", severity=sev)
+            host_kind = "root" if host in roots else "host"
+            existing = nodes.get(f"host:{host}")
+            if existing and existing.get("kind") == "root":
+                host_kind = "root"
+            add_node(f"host:{host}", host, host_kind, severity=sev, host=host)
             for root in roots:
-                if host != root and (host == root or host.endswith("." + root)):
+                if host != root and host.endswith("." + root):
                     ek = f"host:{root}->host:{host}"
                     if ek not in edge_keys:
                         edges.append({"from": f"host:{root}", "to": f"host:{host}", "label": "subdomain"})
@@ -84,7 +88,16 @@ def build_chart_from_store(store: Store, config: AppConfig) -> dict[str, Any]:
             if re.search(r"\.(css|png|jpe?g|gif|svg|woff2?|ico|map)(\?|$)", url, re.I):
                 continue
             uid = f"url:{_norm_endpoint(url)}"
-            add_node(uid, _short_url(url), "url", severity=sev, full=url)
+            interesting_url = bool(_INTERESTING_WORDS.search(blob)) or sev in _INTERESTING_SEV
+            add_node(
+                uid,
+                _short_url(url),
+                "url",
+                severity=sev,
+                full=url,
+                host=host,
+                interesting=interesting_url,
+            )
             url_count += 1
             if host:
                 ek = f"host:{host}->{uid}"
@@ -93,17 +106,67 @@ def build_chart_from_store(store: Store, config: AppConfig) -> dict[str, Any]:
                     edge_keys.add(ek)
 
         if kind == "ports":
-            fid = f"svc:{f.get('id')}"
-            add_node(fid, (title or "services")[:60], "service", severity=sev, detail=(f.get("detail") or "")[:180])
             parent = f"host:{host}" if host else None
-            if parent and parent in nodes:
-                ek = f"{parent}->{fid}"
-                if ek not in edge_keys:
-                    edges.append({"from": parent, "to": fid, "label": "service"})
-                    edge_keys.add(ek)
+            detail = f.get("detail") or ""
+            # Split "80/tcp (http), 443/tcp (https), 3306/tcp (mysql)" into boxes
+            parts = re.findall(
+                r"(\d+)\s*/\s*(tcp|udp)\s*(?:\(([^)]+)\))?",
+                detail,
+                flags=re.I,
+            )
+            if not parts:
+                # fallback: loose "3306 mysql" / "https"
+                parts = []
+            if parts:
+                for port, proto, svc in parts[:24]:
+                    svc_name = (svc or proto).strip() or "service"
+                    label = f"{svc_name} {port}"
+                    if re.search(r"(?i)https?", svc_name) or port in {"80", "443"}:
+                        label = f"{svc_name or 'http'} {port}"
+                    fid = f"svc:{host}:{port}/{proto}"
+                    add_node(
+                        fid,
+                        label[:48],
+                        "service",
+                        severity=sev,
+                        detail=f"{port}/{proto} {svc_name}",
+                        port=port,
+                        proto=proto,
+                        service_name=svc_name,
+                        host=host,
+                    )
+                    if parent and parent in nodes:
+                        ek = f"{parent}->{fid}"
+                        if ek not in edge_keys:
+                            edges.append({"from": parent, "to": fid, "label": "service"})
+                            edge_keys.add(ek)
+            else:
+                fid = f"svc:{f.get('id')}"
+                add_node(
+                    fid,
+                    (title or "services")[:60],
+                    "service",
+                    severity=sev,
+                    detail=detail[:180],
+                    host=host,
+                )
+                if parent and parent in nodes:
+                    ek = f"{parent}->{fid}"
+                    if ek not in edge_keys:
+                        edges.append({"from": parent, "to": fid, "label": "service"})
+                        edge_keys.add(ek)
         elif kind not in {"host", "http", "url"} and sev in _INTERESTING_SEV:
             fid = f"finding:{f.get('id')}"
-            add_node(fid, title[:60], "finding", severity=sev, detail=(f.get("detail") or "")[:180])
+            interesting_hit = bool(_INTERESTING_WORDS.search(blob))
+            add_node(
+                fid,
+                title[:60],
+                "finding",
+                severity=sev,
+                detail=(f.get("detail") or "")[:180],
+                host=host,
+                interesting=interesting_hit or sev in {"critical", "high"},
+            )
             parent = f"host:{host}" if host and f"host:{host}" in nodes else None
             if parent:
                 ek = f"{parent}->{fid}"
@@ -111,24 +174,27 @@ def build_chart_from_store(store: Store, config: AppConfig) -> dict[str, Any]:
                     edges.append({"from": parent, "to": fid, "label": kind})
                     edge_keys.add(ek)
 
-    # Auto highlights
+    # Auto highlights — interesting endpoints / high sev
     highlight = [
         n["id"]
         for n in nodes.values()
-        if n["kind"] in {"root", "service"}
+        if n.get("interesting")
+        or n["kind"] in {"service"}
         or _INTERESTING_WORDS.search(n.get("label") or "")
-        or (n.get("severity") or "") in _INTERESTING_SEV
-    ][:40]
+        or (n.get("severity") or "") in {"critical", "high"}
+    ][:50]
 
     notes_lines = [
         f"Scope: {', '.join(roots) or '(none)'}",
         f"Hosts: {sum(1 for n in nodes.values() if n['kind'] in {'root','host'})}",
         f"Endpoints: {sum(1 for n in nodes.values() if n['kind'] == 'url')}",
         f"Services/interesting: {sum(1 for n in nodes.values() if n['kind'] in {'service','finding'})}",
+        "Click a domain or subdomain to open its service matrix.",
     ]
 
     return {
         "title": "Target surface chart",
+        "layout": "matrix",
         "scope": roots,
         "nodes": list(nodes.values()),
         "edges": edges,

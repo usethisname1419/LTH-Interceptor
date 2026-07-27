@@ -204,7 +204,13 @@ def index() -> FileResponse:
 
 @app.get("/chart")
 def chart_page() -> FileResponse:
-    return FileResponse(UI_DIR / "chart.html")
+    return FileResponse(
+        UI_DIR / "chart.html",
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+            "Pragma": "no-cache",
+        },
+    )
 
 
 @app.get("/api/health")
@@ -331,7 +337,7 @@ async def api_chart_cancel() -> dict[str, Any]:
 
 
 @app.post("/api/chart/generate")
-async def api_chart_generate() -> dict[str, Any]:
+async def api_chart_generate(lean: bool = False) -> dict[str, Any]:
     global _chart_cache, _chart_busy, _chart_cancel
     if _chart_busy:
         return {"ok": False, "error": "Chart generation already running — press Stop"}
@@ -347,7 +353,7 @@ async def api_chart_generate() -> dict[str, Any]:
         chart = await loop.run_in_executor(
             None,
             lambda: generate_chart(
-                store, _cfg, use_llm=True, cancel_check=_cancel_check
+                store, _cfg, use_llm=not lean, cancel_check=_cancel_check
             ),
         )
         chart["generated_at"] = datetime.now(timezone.utc).isoformat()

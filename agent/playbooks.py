@@ -22,7 +22,7 @@ class Playbook:
 
 
 PLAYBOOKS: list[Playbook] = [
-    Playbook("recon", "Recon", "Subdomains + HTTP probe + quick ports"),
+    Playbook("recon", "Recon", "Subdomains + HTTP probe + nmap ports + light surface"),
     Playbook("surface", "Surface Map", "Crawl + inspect HTML/JS for endpoints, sinks, secrets"),
     Playbook("web-bounty", "Web Bounty", "Live hosts → surface map → nuclei → fuzz → XSS"),
     Playbook("ports", "Port Sweep", "Common-port nmap on scope roots / known hosts"),
@@ -117,11 +117,26 @@ class PlaybookRunner:
         found = [f["host"] for f in self.store.list_findings() if f.get("kind") == "host" and f.get("host")]
         targets = sorted(set(found or hosts))[:12]
         self._run_tool("httpx_probe", {"targets": ",".join(targets)}, log)
-        self._run_tool("nmap_scan", {"target": root, "ports": "80,443,8080,8443,22"}, log)
+
+        # Port scan is core recon — root first (common ports), then live HTTP hosts
+        self._run_tool("nmap_scan", {"target": root}, log)
+        live = []
+        for f in self.store.list_findings():
+            if f.get("kind") == "http" and f.get("host"):
+                h = f["host"]
+                if h not in live and h != root:
+                    live.append(h)
+        for h in live[:5]:
+            self._run_tool("nmap_scan", {"target": h}, log)
+
         # Light surface pass on root
         self._run_tool("crawl_urls", {"url": f"https://{root}", "depth": 2}, log)
         self._run_tool("inspect_page", {"url": f"https://{root}", "follow_js": True, "max_scripts": 6}, log)
-        return f"Recon complete on {root}. Hosts probed: {len(targets)}."
+        nmap_hosts = 1 + min(len(live), 5)
+        return (
+            f"Recon complete on {root}. Hosts probed: {len(targets)}. "
+            f"nmap on {nmap_hosts} host(s)."
+        )
 
     def _surface(self, hosts: list[str], log: list[dict[str, Any]]) -> str:
         http = [f for f in self.store.list_findings() if f.get("kind") == "http" and f.get("url")]

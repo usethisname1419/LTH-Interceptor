@@ -8,6 +8,9 @@
   --warn: #ffb454;
   --danger: #ff6b6b;
   --info: #6ec8ff;
+  --box: #f4f6f5;
+  --box-stroke: #1a1a1a;
+  --hi-stroke: #b42318;
   --font-ui: "Sora", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 }
@@ -32,7 +35,7 @@ html, body {
 }
 .title { font-weight: 700; }
 .sub { color: var(--muted); font-family: var(--font-mono); font-size: 0.72rem; margin-top: 0.15rem; }
-.actions { display: flex; gap: 0.5rem; }
+.actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 button {
   border: 1px solid var(--line);
   background: #1a221e;
@@ -54,6 +57,7 @@ button.stop {
   color: #ffb4b4;
 }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
+button.hidden { display: none; }
 main {
   display: grid;
   grid-template-columns: 280px 1fr;
@@ -65,14 +69,15 @@ main {
   overflow: auto;
   background: rgba(18,24,22,0.7);
 }
-.notes h2 {
+.notes h2, .hint-title {
   margin: 0 0 0.6rem;
   font-size: 0.75rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
 }
-#notes {
+.hint-title { margin-top: 1.2rem; }
+#notes, .view-hint {
   font-family: var(--font-mono);
   font-size: 0.78rem;
   line-height: 1.45;
@@ -81,11 +86,14 @@ main {
 }
 .canvas-wrap {
   position: relative;
-  overflow: hidden;
+  overflow: auto;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.02), transparent 40%),
+    #0e1411;
 }
 #canvas {
   width: 100%;
-  height: 100%;
+  min-height: 100%;
   display: block;
 }
 .empty {
@@ -112,18 +120,59 @@ main {
   max-width: 50vw;
 }
 .status:empty { display: none; }
-.node-root { fill: #1f8f5f; }
-.node-host { fill: #2a4a38; }
-.node-url { fill: #243648; }
-.node-finding { fill: #4a4024; }
-.node-hi { stroke: var(--accent); stroke-width: 2.5; }
-text {
-  fill: var(--text);
+
+/* Matrix boxes — light cards on dark canvas like the sketch */
+.box {
+  fill: var(--box);
+  stroke: var(--box-stroke);
+  stroke-width: 2;
+  rx: 2;
+  ry: 2;
+}
+.box.root { fill: #fff; stroke-width: 2.5; }
+.box.sub { fill: #e8ece9; stroke: #6a7370; }
+.box.service { fill: #fff; }
+.box.url { fill: #f7faf8; }
+.box.finding { fill: #fff8f0; }
+.box.interesting {
+  stroke: var(--hi-stroke);
+  stroke-width: 2.5;
+  fill: #fff5f4;
+}
+.box.clickable { cursor: pointer; }
+.box.clickable:hover { filter: brightness(0.97); stroke: #0a7a4a; }
+
+.box-label {
+  fill: #111;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  pointer-events: none;
+}
+.box-label.hi {
+  fill: var(--hi-stroke);
+  font-weight: 600;
+}
+.box-sublabel {
+  fill: #555;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  pointer-events: none;
+}
+
+.spine { stroke: #111; stroke-width: 3; fill: none; }
+.branch { stroke: #666; stroke-width: 1.6; fill: none; }
+.branch-hi { stroke: var(--hi-stroke); stroke-width: 2; fill: none; }
+.riser { stroke: #111; stroke-width: 2; fill: none; }
+
+.panel-title {
+  fill: var(--muted);
   font-family: var(--font-mono);
   font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
-.edge { stroke: #4a5c52; stroke-width: 1.2; fill: none; }
+
 @media (max-width: 900px) {
-  main { grid-template-columns: 1fr; grid-template-rows: 180px 1fr; }
+  main { grid-template-columns: 1fr; grid-template-rows: 160px 1fr; }
   .notes { border-right: none; border-bottom: 1px solid var(--line); }
 }

@@ -167,6 +167,8 @@ class ToolMemory:
             calls.append({"name": "subdomain_enum", "arguments": {"domain": root}})
         if not self._httpx_hosts:
             calls.append({"name": "httpx_probe", "arguments": {"targets": ",".join(hosts)}})
+        if not self.has_run("nmap_scan", root):
+            calls.append({"name": "nmap_scan", "arguments": {"target": root}})
         elif not self.has_run("dns_lookup", root):
             calls.append({"name": "dns_lookup", "arguments": {"host": root}})
 

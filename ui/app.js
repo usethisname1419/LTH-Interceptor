@@ -629,7 +629,9 @@ findingModal.addEventListener("click", (e) => {
 });
 
 document.getElementById("chartBtn").onclick = () => {
-  window.open("/chart", "lth-chart", "noopener,noreferrer");
+  // Named window often reuses a stale document — bust cache so matrix JS loads
+  const url = `/chart?v=matrix3&t=${Date.now()}`;
+  window.open(url, "lth-chart", "noopener,noreferrer");
 };
 
 async function refreshSessionButtons() {

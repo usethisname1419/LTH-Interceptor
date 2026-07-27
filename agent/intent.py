@@ -137,8 +137,8 @@ def intent_playbook(user_text: str, hosts: list[str]) -> list[dict[str, Any]]:
     if wants_subs and targets:
         calls.append({"name": "subdomain_enum", "arguments": {"domain": targets[0]}})
 
-    if wants_nmap and targets:
-        calls.append({"name": "nmap_scan", "arguments": {"target": targets[0], "ports": "80,443,8080,8443"}})
+    if (wants_nmap or wants_initial or wants_bug) and targets:
+        calls.append({"name": "nmap_scan", "arguments": {"target": targets[0]}})
 
     if (wants_http or wants_initial) and joined:
         calls.append({"name": "httpx_probe", "arguments": {"targets": joined}})
