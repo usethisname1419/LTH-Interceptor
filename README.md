@@ -12,6 +12,20 @@ Local authorized **penetration-testing / bug-bounty agent** with a CLI and Web U
 
 Models are **not** shipped in this repo. Install them with Ollama on your machine.
 
+## Features
+
+- Hybrid agent: Ollama brain on Windows + scanner tools on Kali over SSH
+- Web UI at http://127.0.0.1:8787 — AI stream, findings, todos, notes, analysis, playbook runs
+- CLI via `.\agent.ps1` with dual-model toggle (M1/M2)
+- Playbooks: `recon`, `surface`, `web-bounty`, `ports`, `report`
+- Target chart (endpoints / services / interesting items)
+- Findings severity filters (info / low / medium / hi / crit)
+- Collapsible AI reasoning + agent notes
+- Playwright browser sandbox on Kali (`playwright_browse`)
+- Curated Kali tool inventory + editable pentest skills (`agent/skills/`)
+- SOCKS5 proxy rotation for HTTP tools
+- Session save / resume / clear
+
 ## Requirements
 
 - Windows host with [Ollama](https://ollama.com/) installed
@@ -107,10 +121,14 @@ In chat: `/playbook web-bounty`
 
 ## Safety
 
-- Authorized testing only. Stay in `scope`.
-- Non-destructive by default; reckless shell patterns are blocked.
-- Never commit `config.yaml`, live `data/`, or engagement notes with secrets.
+- Authorized testing only — stay inside configured `scope`
+- Non-destructive by default; reckless shell patterns are blocked
+- Tool / page content treated as untrusted (prompt-injection aware)
+- Never commit `config.yaml`, live `data/`, or engagement notes with secrets
+- Prefer a dedicated secure Kali VM for SSH tooling
+- Use only against systems you are authorized to test
 
-## License
+## Support
 
-Use only against systems you are authorized to test.
+I would really appreciate donations, I don't have a very good income so anything helps.
+via BTC : bc1qr4ajv63duy3zsp2950vwwzqd7tl5rsjk46fqhr
