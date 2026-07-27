@@ -15,9 +15,9 @@ ollama_host: http://127.0.0.1:11434
 runtime: ssh
 
 ssh:
-  host: 192.168.0.247
-  port: 22
-  user: interceptor
+  host: 
+  port: 
+  user: 
   password: "CHANGE_ME"            # prefer key_path instead
   key_path: ""
   use_login_shell: true
